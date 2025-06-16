@@ -12,7 +12,7 @@ const PORT = process.env.PORT || 5000;
 app.use(cors({
   origin: [
     "https://www.aryalegalprocess.com",
-    "https://aryalegalprocess.com",
+    "https://sowmyagorrepati.github.io",
     "http://localhost:5500",
     "http://127.0.0.1:5500"
   ],
