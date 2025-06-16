@@ -3,63 +3,93 @@ const mongoose = require("mongoose");
 const dotenv = require("dotenv");
 const cors = require("cors");
 const bodyParser = require("body-parser");
-const path = require("path");
+
 const Contact = require("./models/contact");
+const Product = require("./models/product");
+const Company = require("./models/company");
+
 
 dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Log requests
-app.use((req, res, next) => {
-  console.log(`→ ${req.method} ${req.url}`);
-  next();
-});
-
-// CORS setup
-app.use(cors({
-  origin: "*",
-  methods: ["GET", "POST"],
-}));
-
 // Middleware
+app.use(cors({
+  origin: [
+   
+    "https://sowmyagorrepati.github.io",
+    "http://localhost:5500", // 👈 Add this during local testing
+    "http://127.0.0.1:5500"
+  ],
+  methods: ["GET", "POST"],
+  credentials: true
+}));
 app.use(bodyParser.json());
 
 // MongoDB connection
-mongoose.connect(process.env.MONGO_URI)
+mongoose.connect(process.env.MONGO_URI, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true
+})
   .then(() => console.log("✅ MongoDB connected"))
   .catch((err) => console.error("❌ MongoDB connection error:", err));
 
-// ✅ Serve static files — THIS must come before routes
-app.use(express.static(path.join(__dirname, "public")));
+// ✅ Barcode lookup route
+app.get("/api/products/:barcode", async (req, res) => {
+  try {
+    const barcode = req.params.barcode;
+    const product = await Product.findOne({
+      barcode: { $regex: new RegExp(`^${barcode}$`) }
+    });
 
-// ✅ API routes
+    if (!product) {
+      return res.status(404).json({ error: "Product not found" });
+    }
+
+    // 🔍 Lookup company by `id` field in company collection
+    const company = await Company.findOne({ id: parseInt(product.company) });
+
+    const response = {
+      ...product._doc,
+      companyName: company ? company.name : "Unknown Company"
+    };
+
+    res.json(response);
+  } catch (err) {
+    console.error("❌ Error:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+
+
+// ✅ Contact form POST
 app.post("/api/contact", async (req, res) => {
   try {
+    console.log("Form data received:", req.body);
     const { name, email, message } = req.body;
     const newContact = new Contact({ name, email, message });
     await newContact.save();
     res.status(200).json({ message: "Form submitted successfully!" });
   } catch (err) {
+    console.error("Error submitting form:", err);
     res.status(500).json({ error: "Failed to submit form." });
   }
 });
 
+// ✅ Contact form GET
 app.get("/api/contact", async (req, res) => {
+  console.log("GET /api/contact was hit");
   try {
     const contacts = await Contact.find();
     res.json(contacts);
   } catch (err) {
+    console.error("Error fetching contacts:", err);
     res.status(500).json({ error: "Failed to fetch contacts." });
   }
 });
 
-// ✅ Root route - fallback to index.html
-app.get("/", (req, res) => {
-  res.sendFile(path.join(__dirname, "public", "index.html"));
-});
-
-// Start server
+// ✅ Start server
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });
